@@ -52,7 +52,7 @@ position = Vector2(0, 536)
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Floor" unique_id=303002751]
-position = Vector2(4, 69)
+position = Vector2(4, 124)
 shape = SubResource("RectangleShape2D_floor")
 
 [node name="Player" type="CharacterBody2D" parent="." unique_id=651863037]
