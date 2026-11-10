@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dmewhqy55avn6"
-path="res://.godot/imported/Slime Frames Clean.png-83c56517af16d59e33a38b757b35f015.ctex"
+uid="uid://cm8fhhnyfaj8g"
+path="res://.godot/imported/Slime Fireball.png-62c56cd41681fa080feda32b78bf81a3.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Slime Frames Clean.png"
-dest_files=["res://.godot/imported/Slime Frames Clean.png-83c56517af16d59e33a38b757b35f015.ctex"]
+source_file="res://Animation Sheets/Slime Fireball.png"
+dest_files=["res://.godot/imported/Slime Fireball.png-62c56cd41681fa080feda32b78bf81a3.ctex"]
 
 [params]
 

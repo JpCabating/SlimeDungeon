@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bvvuoqxnhjfl1"
-path="res://.godot/imported/Animation Frame.png-7eadf7f10471ca4b30f66bb318599357.ctex"
+uid="uid://2aqcc6t73xg7"
+path="res://.godot/imported/Dungeon Enemies Clean.png-f87a8021dc63d7c955aa956d2abfa90e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Animation Frame.png"
-dest_files=["res://.godot/imported/Animation Frame.png-7eadf7f10471ca4b30f66bb318599357.ctex"]
+source_file="res://Animation Sheets/Dungeon Enemies Clean.png"
+dest_files=["res://.godot/imported/Dungeon Enemies Clean.png-f87a8021dc63d7c955aa956d2abfa90e.ctex"]
 
 [params]
 

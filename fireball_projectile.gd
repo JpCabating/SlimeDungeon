@@ -1,6 +1,6 @@
 extends Area2D
 
-const PROJECTILE_SHEET := preload("res://Fireball Projectile.png")
+const PROJECTILE_SHEET := preload("res://Animation Sheets/Fireball Projectile.png")
 const SPEED := 560.0
 const FRAME_HEIGHT := 54.25
 

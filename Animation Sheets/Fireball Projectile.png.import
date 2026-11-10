@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cm8fhhnyfaj8g"
-path="res://.godot/imported/Slime Fireball.png-324ee38a14bc940d14ae80a88fc4e663.ctex"
+uid="uid://dvgpl3kvd4nko"
+path="res://.godot/imported/Fireball Projectile.png-4399124f5e8154c92c72578ae2eefb7e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Slime Fireball.png"
-dest_files=["res://.godot/imported/Slime Fireball.png-324ee38a14bc940d14ae80a88fc4e663.ctex"]
+source_file="res://Animation Sheets/Fireball Projectile.png"
+dest_files=["res://.godot/imported/Fireball Projectile.png-4399124f5e8154c92c72578ae2eefb7e.ctex"]
 
 [params]
 

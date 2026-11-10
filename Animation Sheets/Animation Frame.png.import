@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ca6q4pyl5j74l"
-path="res://.godot/imported/Slime Combat.png-9ad00d0cef7c89a224d890c02b2686ea.ctex"
+uid="uid://bvvuoqxnhjfl1"
+path="res://.godot/imported/Animation Frame.png-7d910cac03a559db89c6c31830093cf6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Slime Combat.png"
-dest_files=["res://.godot/imported/Slime Combat.png-9ad00d0cef7c89a224d890c02b2686ea.ctex"]
+source_file="res://Animation Sheets/Animation Frame.png"
+dest_files=["res://.godot/imported/Animation Frame.png-7d910cac03a559db89c6c31830093cf6.ctex"]
 
 [params]
 

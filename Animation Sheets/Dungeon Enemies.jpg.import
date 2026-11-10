@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dvgpl3kvd4nko"
-path="res://.godot/imported/Fireball Projectile.png-a2dfe417675978ddd2c7516967a3b784.ctex"
+uid="uid://dosdn4xfgfq8k"
+path="res://.godot/imported/Dungeon Enemies.jpg-e5add2be084b5eff80c3cacc7e95a0c2.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Fireball Projectile.png"
-dest_files=["res://.godot/imported/Fireball Projectile.png-a2dfe417675978ddd2c7516967a3b784.ctex"]
+source_file="res://Animation Sheets/Dungeon Enemies.jpg"
+dest_files=["res://.godot/imported/Dungeon Enemies.jpg-e5add2be084b5eff80c3cacc7e95a0c2.ctex"]
 
 [params]
 

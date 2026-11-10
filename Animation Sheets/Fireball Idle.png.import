@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://2aqcc6t73xg7"
-path="res://.godot/imported/Dungeon Enemies Clean.png-d5c3081188d3bf8bb493093b070de781.ctex"
+uid="uid://caiar1v714qc"
+path="res://.godot/imported/Fireball Idle.png-daffe3582e22cfcdea1b3c0840c4a0ed.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Dungeon Enemies Clean.png"
-dest_files=["res://.godot/imported/Dungeon Enemies Clean.png-d5c3081188d3bf8bb493093b070de781.ctex"]
+source_file="res://Animation Sheets/Fireball Idle.png"
+dest_files=["res://.godot/imported/Fireball Idle.png-daffe3582e22cfcdea1b3c0840c4a0ed.ctex"]
 
 [params]
 

@@ -1,6 +1,6 @@
 extends CharacterBody2D
 
-const ENEMY_SHEET := preload("res://Dungeon Enemies Clean.png")
+const ENEMY_SHEET := preload("res://Animation Sheets/Dungeon Enemies Clean.png")
 const WALK_SPEED := 92.0
 const GRAVITY := 1450.0
 

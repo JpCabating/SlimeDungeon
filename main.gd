@@ -9,6 +9,7 @@ const PLAYER_MAX_HEALTH := 5
 const ATTACK_DAMAGE := 2
 const ATTACK_RANGE := 142.0
 const ATTACK_COOLDOWN := 0.48
+const FIREBALL_PICKUP_RADIUS := 30.0
 
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
@@ -382,12 +383,18 @@ func _spawn_fireball_pickup() -> void:
 	pickup.name = "FireballPickup"
 	pickup.set_script(PICKUP_SCRIPT)
 	var side := -1.0 if rng.randf() < 0.5 else 1.0
-	pickup.global_position = player.global_position + Vector2(side * rng.randf_range(180.0, 360.0), -52.0)
+	var floor_collision := $Floor/CollisionShape2D as CollisionShape2D
+	var floor_rectangle := floor_collision.shape as RectangleShape2D
+	var platform_top_y := floor_collision.global_position.y - floor_rectangle.size.y * 0.5
+	pickup.global_position = Vector2(
+		player.global_position.x + side * rng.randf_range(180.0, 360.0),
+		platform_top_y - FIREBALL_PICKUP_RADIUS
+	)
 	pickup.collision_layer = 0
 	pickup.collision_mask = 1
 	var pickup_shape := CollisionShape2D.new()
 	var pickup_circle := CircleShape2D.new()
-	pickup_circle.radius = 30.0
+	pickup_circle.radius = FIREBALL_PICKUP_RADIUS
 	pickup_shape.shape = pickup_circle
 	pickup.add_child(pickup_shape)
 	var pickup_sprite := Sprite2D.new()

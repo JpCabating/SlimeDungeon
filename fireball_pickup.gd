@@ -3,7 +3,7 @@ extends Area2D
 signal picked_up(pickup: Area2D)
 signal expired(pickup: Area2D)
 
-const FIREBALL_SHEET := preload("res://Fireball Idle.png")
+const FIREBALL_SHEET := preload("res://Animation Sheets/Fireball Idle.png")
 
 @onready var sprite: Sprite2D = $Sprite2D
 var lifetime := 18.0

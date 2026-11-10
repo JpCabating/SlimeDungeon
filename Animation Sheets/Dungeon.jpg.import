@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://j8vg3cu4kbmo"
-path="res://.godot/imported/Slime animation sheet.png-f82fe282157bcc63286eb5f8c2587608.ctex"
+uid="uid://cugpfy660gt2i"
+path="res://.godot/imported/Dungeon.jpg-31e603ffe0a34daca0e1009ebe802986.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Slime animation sheet.png"
-dest_files=["res://.godot/imported/Slime animation sheet.png-f82fe282157bcc63286eb5f8c2587608.ctex"]
+source_file="res://Animation Sheets/Dungeon.jpg"
+dest_files=["res://.godot/imported/Dungeon.jpg-31e603ffe0a34daca0e1009ebe802986.ctex"]
 
 [params]
 

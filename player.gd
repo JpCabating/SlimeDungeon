@@ -6,7 +6,7 @@ const JUMP_VELOCITY := -560.0
 const GRAVITY := 1450.0
 const MELEE_TIME := 0.34
 const FIREBALL_TIME := 0.56
-const SLIME_SHEET := preload("res://Slime Frames Clean.png")
+const SLIME_SHEET := preload("res://Animation Sheets/Slime Frames Clean.png")
 const SLIME_SCALE := Vector2(1.35, 1.35)
 const FRAME_SIZE := 96
 
