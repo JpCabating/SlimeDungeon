@@ -1,0 +1,87 @@
+[gd_scene format=3 uid="uid://t6w74m51rwsl"]
+
+[ext_resource type="Script" uid="uid://4a0llf2nbtam" path="res://main.gd" id="1_main"]
+[ext_resource type="Texture2D" uid="uid://cugpfy660gt2i" path="res://Dungeon.jpg" id="2_dungeon"]
+[ext_resource type="Script" uid="uid://bin1h183ghjet" path="res://player.gd" id="3_player"]
+[ext_resource type="Texture2D" path="res://Slime Frames Clean.png" id="4_slime"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
+size = Vector2(200000, 60)
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_player"]
+radius = 28.0
+height = 66.0
+
+[node name="Node2D" type="Node2D" unique_id=459142813]
+script = ExtResource("1_main")
+
+[node name="Background" type="Node2D" parent="." unique_id=576420251]
+
+[node name="TileLeft2" type="Sprite2D" parent="Background" unique_id=334247192]
+z_index = -10
+position = Vector2(-2559.1, 360)
+scale = Vector2(1.63, 1.63)
+texture = ExtResource("2_dungeon")
+
+[node name="TileLeft1" type="Sprite2D" parent="Background" unique_id=931849124]
+z_index = -10
+position = Vector2(-1279.55, 360)
+scale = Vector2(1.63, 1.63)
+texture = ExtResource("2_dungeon")
+
+[node name="TileCenter" type="Sprite2D" parent="Background" unique_id=1651636441]
+z_index = -10
+position = Vector2(0, 360)
+scale = Vector2(1.63, 1.63)
+texture = ExtResource("2_dungeon")
+
+[node name="TileRight1" type="Sprite2D" parent="Background" unique_id=73733289]
+z_index = -10
+position = Vector2(1279.55, 360)
+scale = Vector2(1.63, 1.63)
+texture = ExtResource("2_dungeon")
+
+[node name="TileRight2" type="Sprite2D" parent="Background" unique_id=989618154]
+z_index = -10
+position = Vector2(2559.1, 360)
+scale = Vector2(1.63, 1.63)
+texture = ExtResource("2_dungeon")
+
+[node name="Floor" type="StaticBody2D" parent="." unique_id=1069067763]
+position = Vector2(0, 536)
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Floor" unique_id=303002751]
+position = Vector2(14, 122)
+shape = SubResource("RectangleShape2D_floor")
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=651863037]
+position = Vector2(0, 576)
+script = ExtResource("3_player")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=1607248696]
+position = Vector2(7, -31)
+shape = SubResource("CapsuleShape2D_player")
+
+[node name="Sprite2D" type="Sprite2D" parent="Player" unique_id=1523544521]
+position = Vector2(3.999999, -46.99997)
+texture = ExtResource("4_slime")
+region_enabled = true
+region_rect = Rect2(0, 0, 96, 96)
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=442496938]
+position = Vector2(12, 450)
+position_smoothing_enabled = true
+position_smoothing_speed = 7.0
+
+[node name="WorldEnemies" type="Node2D" parent="." unique_id=1692515093]
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=387179185]
+
+[node name="Controls" type="Label" parent="HUD" unique_id=1967247420]
+offset_left = 22.0
+offset_top = 16.0
+offset_right = 350.0
+offset_bottom = 56.0
+theme_override_font_sizes/font_size = 28
+
