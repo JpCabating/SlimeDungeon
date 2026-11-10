@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://4a0llf2nbtam" path="res://main.gd" id="1_main"]
 [ext_resource type="Texture2D" uid="uid://cugpfy660gt2i" path="res://Dungeon.jpg" id="2_dungeon"]
 [ext_resource type="Script" uid="uid://bin1h183ghjet" path="res://player.gd" id="3_player"]
-[ext_resource type="Texture2D" path="res://Slime Frames Clean.png" id="4_slime"]
+[ext_resource type="Texture2D" uid="uid://dmewhqy55avn6" path="res://Slime Frames Clean.png" id="4_slime"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
 size = Vector2(200000, 60)
@@ -52,7 +52,7 @@ position = Vector2(0, 536)
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Floor" unique_id=303002751]
-position = Vector2(14, 122)
+position = Vector2(4, 69)
 shape = SubResource("RectangleShape2D_floor")
 
 [node name="Player" type="CharacterBody2D" parent="." unique_id=651863037]
@@ -84,4 +84,3 @@ offset_top = 16.0
 offset_right = 350.0
 offset_bottom = 56.0
 theme_override_font_sizes/font_size = 28
-
