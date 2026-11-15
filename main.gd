@@ -1,32 +1,48 @@
 extends Node2D
 
-const DUNGEON_FLOOR_Y := 280.0
+const PLAYER_FOOT_OFFSET := 2.0
+const FLOOR_NAMES := ["floor", "floor2", "floor3"]
+const CAMERA_MARGIN := 18.0
+const SLIME_SCRIPT := preload("res://player.gd")
 const ENEMY_SCRIPT := preload("res://enemy.gd")
 const PICKUP_SCRIPT := preload("res://fireball_pickup.gd")
+const Pickup := PICKUP_SCRIPT.Kind
 const PROJECTILE_SCRIPT := preload("res://fireball_projectile.gd")
+const LIGHTNING_SHEET := preload("res://Animation Sheets/Lightning Beam.png")
+const LIGHTNING_REGION := Rect2(307, 581, 578, 82)
+const LIGHTNING_RANGE := 565.0
+const LIGHTNING_DAMAGE := 4
+const HUD_FRAME := preload("res://Animation Sheets/Dungeon HUD Frame.png")
+const HUD_FRAME_SHADER := preload("res://dungeon_hud_frame.gdshader")
 const ENEMIES_PER_WAVE := 10
+const ENEMY_TYPES := ["skeleton", "slime", "brute"]
+const ENEMY_NAMES := ["Skeleton", "SlimeWarrior", "SlimeBrute"]
+const ENEMY_CAPSULES := [Vector2(28, 60), Vector2(32, 68), Vector2(43, 98)]
 const PLAYER_MAX_HEALTH := 5
 const ATTACK_DAMAGE := 2
 const ATTACK_RANGE := 142.0
 const ATTACK_COOLDOWN := 0.48
-const FIREBALL_PICKUP_RADIUS := 30.0
+const PICKUP_RADIUS := 30.0
 
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
 @onready var enemy_root: Node2D = $WorldEnemies
-@onready var backdrop_tiles: Array[Sprite2D] = [
-	$Background/TileLeft2,
-	$Background/TileLeft1,
-	$Background/TileCenter,
-	$Background/TileRight1,
-	$Background/TileRight2,
-]
-@onready var hearts_label: Label = $HUD/Controls
-
+@onready var dungeon_tile: Node2D = $DungeonTile
+@onready var backdrop: Sprite2D = $DungeonTile/DungeonArt
+@onready var tile_size: Vector2 = backdrop.get_rect().size * backdrop.scale
+var active_tiles: Dictionary[int, Node2D] = {}
+var health_bar: ProgressBar
 var status_label: Label
-var fireball_label: Label
+var combat_hud: TextureRect
+var spell_icon: TextureRect
+var spell_label: Label
+var switch_hint: Label
+var spell_frames: Array[AtlasTexture] = []
+var lightning_icon_material: ShaderMaterial
+var lightning_beam_material: ShaderMaterial
 var menu_overlay: Control
 var end_overlay: Control
+var how_to_overlay: Control
 var wave_option: OptionButton
 var end_title: Label
 var end_message: Label
@@ -42,10 +58,13 @@ var damage_cooldown := 0.0
 var attack_cooldown := 0.0
 var transition_after_spawn := false
 var next_spawn_side := 1.0
-var fireball_charges := 0
-var fireball_cooldown := 0.0
-var pickup_spawn_timer := 0.0
-var active_fireball_pickup: Area2D
+var spell_charges: Array[int] = [0, 0]
+var selected_spell := Pickup.FIREBALL
+var lightning_unlocked := false
+var spell_cooldown := 0.0
+var pickup_timers: Array[float] = [0.0, 0.0, 0.0]
+var active_pickups: Dictionary[int, Area2D] = {}
+var current_level := 1
 var rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
@@ -53,11 +72,19 @@ func _ready() -> void:
 	_ensure_key_binding("move_right", KEY_RIGHT)
 	_ensure_key_binding("jump", KEY_W)
 	_ensure_key_binding("jump", KEY_UP)
+	_ensure_key_binding("jump", KEY_SPACE)
+	_ensure_key_binding("drop", KEY_S)
+	_ensure_key_binding("drop", KEY_DOWN)
 	_ensure_key_binding("attack", KEY_J)
+	_ensure_key_binding("previous_spell", KEY_Q)
+	_ensure_key_binding("next_spell", KEY_E)
 	rng.randomize()
+	$HUD.visible = true
+	player.visible = true
 	player.add_to_group("player")
-	_layout_background()
-	get_viewport().size_changed.connect(_layout_background)
+	_frame_dungeon()
+	_update_scrolling()
+	get_viewport().size_changed.connect(_frame_dungeon)
 	camera.make_current()
 	player.set("controls_enabled", false)
 	_build_hud()
@@ -75,32 +102,69 @@ func _ensure_key_binding(action_name: StringName, keycode: Key) -> void:
 	key_event.physical_keycode = keycode
 	InputMap.action_add_event(action_name, key_event)
 
-func _layout_background() -> void:
-	var texture := backdrop_tiles[0].texture
-	var tile_scale := get_viewport_rect().size.y / float(texture.get_height())
-	var floor_offset := (DUNGEON_FLOOR_Y - texture.get_height() * 0.5) * tile_scale
-	camera.global_position.y = player.global_position.y - floor_offset
-	for tile in backdrop_tiles:
-		tile.scale = Vector2.ONE * tile_scale
+func _frame_dungeon() -> void:
+	var fit := get_viewport_rect().size / (tile_size + Vector2.ONE * CAMERA_MARGIN * 2.0)
+	camera.global_position.y = backdrop.global_position.y
+	camera.zoom = Vector2.ONE * minf(1.0, minf(fit.x, fit.y))
+
+func _tile_index_at(world_x: float) -> int:
+	return floori((world_x - backdrop.global_position.x) / tile_size.x + 0.5)
+
+func _update_scrolling() -> void:
+	camera.global_position.x = player.global_position.x
+	var view_half_width := get_viewport_rect().size.x / (2.0 * camera.zoom.x)
+	var first_tile := _tile_index_at(camera.global_position.x - view_half_width) - 1
+	var last_tile := _tile_index_at(camera.global_position.x + view_half_width) + 1
+	var needed_tiles: Dictionary[int, bool] = {}
+	for tile_index in range(first_tile, last_tile + 1):
+		needed_tiles[tile_index] = true
+	# Enemies can fall behind the camera when the slime runs ahead.
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		var enemy_tile := _tile_index_at(enemy.global_position.x)
+		for tile_index in range(enemy_tile - 1, enemy_tile + 2):
+			needed_tiles[tile_index] = true
+	for tile_index in needed_tiles:
+		if tile_index == 0 or active_tiles.has(tile_index):
+			continue
+		var tile := dungeon_tile.duplicate() as Node2D
+		tile.name = "DungeonTile_%d" % tile_index
+		tile.position.x += tile_index * tile_size.x
+		add_child(tile)
+		active_tiles[tile_index] = tile
+	for tile_index in active_tiles.keys():
+		if not needed_tiles.has(tile_index):
+			active_tiles[tile_index].queue_free()
+			active_tiles.erase(tile_index)
+
+func _level_floor_y(level_index: int) -> float:
+	var floor_shape := dungeon_tile.get_node(FLOOR_NAMES[level_index] + "/CollisionShape2D") as CollisionShape2D
+	var rectangle := floor_shape.shape as RectangleShape2D
+	return floor_shape.global_position.y - rectangle.size.y * 0.5
+
+func get_level_floor_y(level_index: int) -> float:
+	return _level_floor_y(level_index)
+
+func get_level_for_surface(world_position: Vector2) -> int:
+	for level_index in range(FLOOR_NAMES.size() - 1):
+		if world_position.y <= _level_floor_y(level_index) + 1.0:
+			return level_index
+	return FLOOR_NAMES.size() - 1
 
 func _process(delta: float) -> void:
-	camera.global_position.x = player.global_position.x
-	var texture := backdrop_tiles[0].texture
-	var tile_scale := get_viewport_rect().size.y / float(texture.get_height())
-	var tile_width := texture.get_width() * tile_scale
-	var base := floori(player.global_position.x / tile_width)
-	for index in range(backdrop_tiles.size()):
-		var tile_index := base + index - 2
-		backdrop_tiles[index].global_position = Vector2(tile_index * tile_width, camera.global_position.y)
+	_update_scrolling()
 	if not game_active:
 		return
+	if player.is_on_floor():
+		current_level = get_level_for_surface(player.global_position)
 	attack_cooldown = maxf(0.0, attack_cooldown - delta)
 	damage_cooldown = maxf(0.0, damage_cooldown - delta)
-	fireball_cooldown = maxf(0.0, fireball_cooldown - delta)
-	if not is_instance_valid(active_fireball_pickup) and fireball_charges == 0:
-		pickup_spawn_timer -= delta
-		if pickup_spawn_timer <= 0.0:
-			_spawn_fireball_pickup()
+	spell_cooldown = maxf(0.0, spell_cooldown - delta)
+	for kind in pickup_timers.size():
+		if not _pickup_needed(kind):
+			continue
+		pickup_timers[kind] -= delta
+		if pickup_timers[kind] <= 0.0:
+			_spawn_pickup(kind)
 	if spawn_timer > 0.0:
 		spawn_timer -= delta
 	if spawn_timer <= 0.0:
@@ -116,8 +180,14 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not game_active:
 		return
+	if event.is_action_pressed("previous_spell") or event.is_action_pressed("next_spell"):
+		if lightning_unlocked:
+			selected_spell = Pickup.LIGHTNING if selected_spell == Pickup.FIREBALL else Pickup.FIREBALL
+			_update_spell_icon()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("fireball"):
-		_cast_fireball()
+		_cast_selected_spell()
 		get_viewport().set_input_as_handled()
 		return
 	if attack_cooldown > 0.0:
@@ -129,18 +199,68 @@ func _unhandled_input(event: InputEvent) -> void:
 		_attack()
 		get_viewport().set_input_as_handled()
 func _build_hud() -> void:
-	hearts_label.offset_left = 22
-	hearts_label.offset_top = 16
-	hearts_label.offset_right = 350
-	hearts_label.offset_bottom = 56
-	hearts_label.add_theme_font_size_override("font_size", 28)
-	hearts_label.add_theme_color_override("font_color", Color(1.0, 0.30, 0.34))
-	fireball_label = Label.new()
-	fireball_label.position = Vector2(22, 58)
-	fireball_label.size = Vector2(330, 34)
-	fireball_label.add_theme_font_size_override("font_size", 18)
-	fireball_label.add_theme_color_override("font_color", Color(1.0, 0.78, 0.44))
-	$HUD.add_child(fireball_label)
+	combat_hud = TextureRect.new()
+	combat_hud.name = "CombatHUD"
+	combat_hud.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	combat_hud.stretch_mode = TextureRect.STRETCH_SCALE
+	combat_hud.texture = HUD_FRAME
+	combat_hud.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	combat_hud.position = Vector2(10, 3)
+	combat_hud.size = Vector2(292, 159)
+	combat_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var frame_material := ShaderMaterial.new()
+	frame_material.shader = HUD_FRAME_SHADER
+	combat_hud.material = frame_material
+	$HUD.add_child(combat_hud)
+	health_bar = ProgressBar.new()
+	health_bar.name = "LifeBar"
+	health_bar.position = Vector2(57, 52)
+	health_bar.size = Vector2(177, 18)
+	health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	health_bar.min_value = 0
+	health_bar.max_value = PLAYER_MAX_HEALTH
+	health_bar.value = player_health
+	health_bar.show_percentage = false
+	var life_background := StyleBoxFlat.new()
+	life_background.bg_color = Color(0.09, 0.12, 0.16, 0.96)
+	life_background.set_corner_radius_all(7)
+	life_background.set_border_width_all(2)
+	life_background.border_color = Color(0.77, 0.83, 0.89, 0.85)
+	health_bar.add_theme_stylebox_override("background", life_background)
+	var life_fill := StyleBoxFlat.new()
+	life_fill.bg_color = Color(0.88, 0.18, 0.25)
+	life_fill.set_corner_radius_all(5)
+	health_bar.add_theme_stylebox_override("fill", life_fill)
+	combat_hud.add_child(health_bar)
+	var fireball_frame := AtlasTexture.new()
+	fireball_frame.atlas = PICKUP_SCRIPT.FIREBALL_SHEET
+	fireball_frame.region = PICKUP_SCRIPT.ICON_REGION
+	var lightning_frame := AtlasTexture.new()
+	lightning_frame.atlas = PICKUP_SCRIPT.LIGHTNING_SHEET
+	lightning_frame.region = PICKUP_SCRIPT.LIGHTNING_ICON_REGION
+	spell_frames = [fireball_frame, lightning_frame]
+	lightning_icon_material = PICKUP_SCRIPT.lightning_material()
+	lightning_beam_material = PICKUP_SCRIPT.lightning_material()
+	lightning_beam_material.set_shader_parameter("preserve_core", Vector3(350.0 / 1024.0, 622.0 / 683.0, 0.026))
+	spell_icon = TextureRect.new()
+	spell_icon.name = "SpellIcon"
+	spell_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spell_icon.position = Vector2(58, 76)
+	spell_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	spell_icon.size = Vector2(31, 27)
+	spell_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	spell_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_hud.add_child(spell_icon)
+	spell_label = Label.new()
+	spell_label.position = Vector2(95, 77)
+	spell_label.add_theme_font_size_override("font_size", 18)
+	combat_hud.add_child(spell_label)
+	switch_hint = Label.new()
+	switch_hint.text = "Q  /  E"
+	switch_hint.position = Vector2(189, 80)
+	switch_hint.add_theme_font_size_override("font_size", 13)
+	combat_hud.add_child(switch_hint)
+	_update_spell_icon()
 	status_label = Label.new()
 	status_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	status_label.offset_left = -460
@@ -151,16 +271,23 @@ func _build_hud() -> void:
 	status_label.add_theme_font_size_override("font_size", 21)
 	status_label.add_theme_color_override("font_color", Color.WHITE)
 	$HUD.add_child(status_label)
-	hearts_label.visible = false
-	fireball_label.visible = false
+	combat_hud.visible = false
 	status_label.visible = false
 
 func _update_hud() -> void:
-	hearts_label.text = "♥ ".repeat(player_health) + "♡ ".repeat(PLAYER_MAX_HEALTH - player_health)
-	fireball_label.text = "FIREBALL × %d   [RMB]" % fireball_charges
+	health_bar.value = player_health
+	spell_label.text = "× %d" % spell_charges[selected_spell]
 	status_label.text = "WAVE %d / %d     ENEMIES %d / %d" % [current_wave, total_waves, defeated_this_wave, ENEMIES_PER_WAVE]
+
+func _update_spell_icon() -> void:
+	var is_lightning := selected_spell == Pickup.LIGHTNING
+	spell_icon.texture = spell_frames[selected_spell]
+	spell_icon.material = lightning_icon_material if is_lightning else null
+	spell_label.modulate = Color(0.64, 0.88, 1.0) if is_lightning else Color(1.0, 0.78, 0.44)
+	spell_label.text = "× %d" % spell_charges[selected_spell]
+	switch_hint.visible = lightning_unlocked
 func _build_main_menu() -> void:
-	menu_overlay = _make_overlay("SLIME DUNGEON", "Fight through waves of dungeon enemies.\nMove: A / D or arrows    Attack: J or click\nJump: Space / W / ↑    Run: Shift\nFireball pickup: 3 shots · press RMB")
+	menu_overlay = _make_overlay("SLIME DUNGEON", "Face the dungeon. Survive every wave.")
 	var box := menu_overlay.get_node("Center/Panel/Content") as VBoxContainer
 	var count_label := Label.new()
 	count_label.text = "NUMBER OF WAVES"
@@ -183,7 +310,26 @@ func _build_main_menu() -> void:
 	start_button.custom_minimum_size.y = 52
 	start_button.pressed.connect(_start_selected_game)
 	box.add_child(start_button)
+	var how_to_button := Button.new()
+	how_to_button.text = "HOW TO PLAY"
+	how_to_button.custom_minimum_size.y = 46
+	how_to_button.pressed.connect(_show_how_to_play)
+	box.add_child(how_to_button)
 	menu_overlay.visible = true
+	_build_how_to_overlay()
+
+func _build_how_to_overlay() -> void:
+	how_to_overlay = _make_overlay("HOW TO PLAY", "Move: A / D or ← / →\nJump onto wooden ledges: Space / W / ↑\nDrop through a platform: S / ↓ + Space\nRun: hold Shift\nMelee: J or left click\nCollect fireball or lightning charges, then right click to cast\nAfter collecting lightning, switch attacks with Q or E\nCollect green crosses to restore health\nDefeat every enemy in each wave to clear the dungeon.")
+	var box := how_to_overlay.get_node("Center/Panel/Content") as VBoxContainer
+	var close_button := Button.new()
+	close_button.text = "BACK TO MENU"
+	close_button.custom_minimum_size.y = 46
+	close_button.pressed.connect(func() -> void: how_to_overlay.visible = false)
+	box.add_child(close_button)
+	how_to_overlay.visible = false
+
+func _show_how_to_play() -> void:
+	how_to_overlay.visible = true
 
 func _build_end_overlay() -> void:
 	end_overlay = _make_overlay("", "")
@@ -223,7 +369,7 @@ func _make_overlay(title_text: String, subtitle_text: String) -> Control:
 	overlay.add_child(center)
 	var panel := PanelContainer.new()
 	panel.name = "Panel"
-	panel.custom_minimum_size = Vector2(470, 420)
+	panel.custom_minimum_size = Vector2(500, 450)
 	center.add_child(panel)
 	var content := VBoxContainer.new()
 	content.name = "Content"
@@ -239,6 +385,7 @@ func _make_overlay(title_text: String, subtitle_text: String) -> Control:
 		var subtitle := Label.new()
 		subtitle.text = subtitle_text
 		subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		subtitle.add_theme_font_size_override("font_size", 18)
 		content.add_child(subtitle)
 	return overlay
@@ -257,9 +404,12 @@ func _start_game() -> void:
 	phase = "playing"
 	game_active = true
 	player_health = PLAYER_MAX_HEALTH
-	fireball_charges = 0
-	fireball_cooldown = 0.0
-	pickup_spawn_timer = rng.randf_range(5.0, 9.0)
+	spell_charges = [0, 0]
+	selected_spell = Pickup.FIREBALL
+	lightning_unlocked = false
+	spell_cooldown = 0.0
+	pickup_timers = [rng.randf_range(5.0, 9.0), rng.randf_range(8.0, 14.0), rng.randf_range(6.0, 12.0)]
+	_update_spell_icon()
 	current_wave = 0
 	spawned_this_wave = 0
 	defeated_this_wave = 0
@@ -268,14 +418,16 @@ func _start_game() -> void:
 	attack_cooldown = 0.0
 	transition_after_spawn = false
 	next_spawn_side = 1.0
-	player.global_position = Vector2(0, 576)
+	current_level = 1
+	player.global_position = Vector2(0.0, _level_floor_y(current_level) - PLAYER_FOOT_OFFSET)
+	_update_scrolling()
 	player.velocity = Vector2.ZERO
 	player.call("reset_animation_state")
 	player.set("controls_enabled", true)
+	player.visible = true
 	menu_overlay.visible = false
 	end_overlay.visible = false
-	hearts_label.visible = true
-	fireball_label.visible = true
+	combat_hud.visible = true
 	status_label.visible = true
 	_begin_wave(1)
 func _begin_wave(number: int) -> void:
@@ -298,30 +450,28 @@ func _spawn_enemy(group_index: int) -> void:
 	if not game_active:
 		return
 	var enemy := CharacterBody2D.new()
-	var enemy_is_orc := spawned_this_wave % 2 == 1
-	var enemy_name_prefix := "Orc_" if enemy_is_orc else "Skeleton_"
-	enemy.name = enemy_name_prefix + str(spawned_this_wave + 1).pad_zeros(2)
+	var type_index := spawned_this_wave % ENEMY_TYPES.size()
+	enemy.name = "%s_%02d" % [ENEMY_NAMES[type_index], spawned_this_wave + 1]
 	enemy.set_script(ENEMY_SCRIPT)
 	enemy.set("controller", self)
 	enemy.set("target", player)
-	enemy.set("enemy_type", "orc" if enemy_is_orc else "skeleton")
-	enemy.position = player.global_position + Vector2(next_spawn_side * (430.0 + group_index * 90.0), 0.0)
-	enemy.collision_layer = 1
-	enemy.collision_mask = 1
+	enemy.set("enemy_type", ENEMY_TYPES[type_index])
+	enemy.position = Vector2(
+		player.global_position.x + next_spawn_side * (430.0 + group_index * 90.0),
+		_level_floor_y(current_level) - PLAYER_FOOT_OFFSET
+	)
+	enemy.collision_layer = 2
+	enemy.collision_mask = SLIME_SCRIPT.WORLD_MASK
 	var body_shape := CollisionShape2D.new()
 	var capsule := CapsuleShape2D.new()
-	capsule.radius = 26.0 if enemy_is_orc else 22.0
-	capsule.height = 64.0 if enemy_is_orc else 56.0
+	var capsule_size: Vector2 = ENEMY_CAPSULES[type_index]
+	capsule.height = capsule_size.y
+	capsule.radius = capsule_size.x
 	body_shape.shape = capsule
-	body_shape.position.y = -32.0 if enemy_is_orc else -28.0
+	body_shape.position.y = -capsule_size.y * 0.5
 	enemy.add_child(body_shape)
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite2D"
-	sprite.centered = true
-	sprite.position.y = -45.0 if enemy_is_orc else -43.0
-	sprite.scale = Vector2(1.42, 1.42) if enemy_is_orc else Vector2(1.28, 1.28)
-	sprite.region_enabled = true
-	sprite.region_rect = Rect2(0, 430, 96, 100) if enemy_is_orc else Rect2(0, 0, 96, 100)
 	enemy.add_child(sprite)
 	enemy_root.add_child(enemy)
 	enemy.add_to_group("enemies")
@@ -348,12 +498,43 @@ func _attack() -> void:
 	if is_instance_valid(closest):
 		closest.call("take_damage", ATTACK_DAMAGE, facing)
 
-func _cast_fireball() -> void:
-	if fireball_charges <= 0 or fireball_cooldown > 0.0:
+func spawn_hit_particles(at_position: Vector2, is_death: bool = false) -> void:
+	var particles := CPUParticles2D.new()
+	particles.name = "HitParticles"
+	particles.position = at_position
+	particles.z_index = 5
+	particles.amount = 18 if is_death else 9
+	particles.lifetime = 0.42 if is_death else 0.28
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.direction = Vector2(0.0, -1.0)
+	particles.spread = 180.0
+	particles.gravity = Vector2(0.0, 260.0)
+	particles.initial_velocity_min = 90.0 if is_death else 65.0
+	particles.initial_velocity_max = 240.0 if is_death else 155.0
+	particles.scale_amount_min = 2.0
+	particles.scale_amount_max = 4.5 if is_death else 3.2
+	particles.color = Color(0.56, 0.94, 0.40) if is_death else Color(1.0, 0.72, 0.42)
+	add_child(particles)
+	particles.finished.connect(particles.queue_free)
+	particles.emitting = true
+
+func _cast_selected_spell() -> void:
+	if spell_charges[selected_spell] <= 0 or spell_cooldown > 0.0:
 		return
-	fireball_charges -= 1
-	fireball_cooldown = 0.30
+	spell_charges[selected_spell] -= 1
 	var direction := float(player.get("facing"))
+	if selected_spell == Pickup.LIGHTNING:
+		spell_cooldown = 0.55
+		_cast_lightning(direction)
+	else:
+		spell_cooldown = 0.30
+		_cast_fireball(direction)
+	if spell_charges[selected_spell] == 0:
+		pickup_timers[selected_spell] = rng.randf_range(4.0, 7.0)
+	_update_hud()
+
+func _cast_fireball(direction: float) -> void:
 	player.call("play_fireball_animation")
 	var projectile := Area2D.new()
 	projectile.name = "FireballProjectile"
@@ -361,7 +542,7 @@ func _cast_fireball() -> void:
 	projectile.set("direction", direction)
 	projectile.position = player.global_position + Vector2(direction * 58.0, -52.0)
 	projectile.collision_layer = 0
-	projectile.collision_mask = 1
+	projectile.collision_mask = 2
 	var projectile_shape := CollisionShape2D.new()
 	var projectile_circle := CircleShape2D.new()
 	projectile_circle.radius = 18.0
@@ -372,59 +553,92 @@ func _cast_fireball() -> void:
 	projectile_sprite.scale = Vector2(1.2, 1.2)
 	projectile.add_child(projectile_sprite)
 	enemy_root.add_child(projectile)
-	if fireball_charges == 0:
-		pickup_spawn_timer = rng.randf_range(4.0, 7.0)
-	_update_hud()
 
-func _spawn_fireball_pickup() -> void:
-	if not game_active or fireball_charges > 0 or is_instance_valid(active_fireball_pickup):
+func _cast_lightning(direction: float) -> void:
+	player.call("play_lightning_animation")
+	var beam := Sprite2D.new()
+	beam.name = "LightningBeam"
+	beam.texture = LIGHTNING_SHEET
+	beam.region_enabled = true
+	beam.region_rect = LIGHTNING_REGION
+	beam.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	beam.material = lightning_beam_material
+	beam.scale = Vector2(LIGHTNING_RANGE / LIGHTNING_REGION.size.x, 0.82)
+	beam.flip_h = direction < 0.0
+	beam.position = player.position + Vector2(direction * (38.0 + LIGHTNING_RANGE * 0.5), -36.0)
+	beam.z_index = 6
+	enemy_root.add_child(beam)
+	beam.add_to_group("spell_effects")
+	var fade := beam.create_tween()
+	fade.tween_property(beam, "modulate:a", 0.0, 0.2).set_delay(0.12)
+	fade.tween_callback(beam.queue_free)
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		var offset: Vector2 = enemy.global_position - player.global_position
+		var forward := offset.x * direction
+		if forward >= 0.0 and forward <= LIGHTNING_RANGE + 38.0 and absf(offset.y) <= 66.0:
+			enemy.call("take_damage", LIGHTNING_DAMAGE, direction)
+
+func _pickup_needed(kind: int) -> bool:
+	if is_instance_valid(active_pickups.get(kind)):
+		return false
+	if kind == Pickup.HEALING:
+		return player_health < PLAYER_MAX_HEALTH
+	return spell_charges[kind] == 0
+
+func _spawn_pickup(kind: int) -> void:
+	if not game_active or not _pickup_needed(kind):
 		return
 	var pickup := Area2D.new()
-	pickup.name = "FireballPickup"
+	pickup.name = ["FireballPickup", "LightningPickup", "HealingCross"][kind]
 	pickup.set_script(PICKUP_SCRIPT)
+	pickup.set("kind", kind)
 	var side := -1.0 if rng.randf() < 0.5 else 1.0
-	var floor_collision := $Floor/CollisionShape2D as CollisionShape2D
-	var floor_rectangle := floor_collision.shape as RectangleShape2D
-	var platform_top_y := floor_collision.global_position.y - floor_rectangle.size.y * 0.5
+	var platform_top_y := _level_floor_y(current_level)
+	var pickup_x := player.global_position.x + side * rng.randf_range(180.0, 360.0)
 	pickup.global_position = Vector2(
-		player.global_position.x + side * rng.randf_range(180.0, 360.0),
-		platform_top_y - FIREBALL_PICKUP_RADIUS
+		pickup_x,
+		platform_top_y - PICKUP_RADIUS
 	)
 	pickup.collision_layer = 0
 	pickup.collision_mask = 1
 	var pickup_shape := CollisionShape2D.new()
 	var pickup_circle := CircleShape2D.new()
-	pickup_circle.radius = FIREBALL_PICKUP_RADIUS
+	pickup_circle.radius = PICKUP_RADIUS
 	pickup_shape.shape = pickup_circle
 	pickup.add_child(pickup_shape)
 	var pickup_sprite := Sprite2D.new()
 	pickup_sprite.name = "Sprite2D"
-	pickup_sprite.scale = Vector2(0.9, 0.9)
 	pickup.add_child(pickup_sprite)
-	pickup.connect("picked_up", Callable(self, "_on_fireball_pickup_collected"))
-	pickup.connect("expired", Callable(self, "_on_fireball_pickup_expired"))
+	pickup.connect("picked_up", _on_pickup_collected.bind(kind))
+	pickup.connect("expired", _on_pickup_expired.bind(kind))
 	enemy_root.add_child(pickup)
-	active_fireball_pickup = pickup
+	active_pickups[kind] = pickup
 
-func _on_fireball_pickup_collected(pickup: Area2D) -> void:
-	if pickup != active_fireball_pickup:
+func _on_pickup_collected(pickup: Area2D, kind: int) -> void:
+	if pickup != active_pickups.get(kind):
 		return
-	active_fireball_pickup = null
-	fireball_charges = 3
-	pickup_spawn_timer = rng.randf_range(5.0, 8.0)
+	active_pickups.erase(kind)
+	if kind == Pickup.HEALING:
+		player_health = mini(PLAYER_MAX_HEALTH, player_health + 2)
+		pickup_timers[kind] = rng.randf_range(8.0, 15.0)
+	elif kind == Pickup.LIGHTNING:
+		spell_charges[kind] = 2
+		lightning_unlocked = true
+		_update_spell_icon()
+	else:
+		spell_charges[kind] = 3
 	_update_hud()
 
-func _on_fireball_pickup_expired(pickup: Area2D) -> void:
-	if pickup == active_fireball_pickup:
-		active_fireball_pickup = null
-		pickup_spawn_timer = rng.randf_range(4.0, 7.0)
+func _on_pickup_expired(pickup: Area2D, kind: int) -> void:
+	if pickup == active_pickups.get(kind):
+		active_pickups.erase(kind)
+		pickup_timers[kind] = rng.randf_range(4.0, 7.0)
 
 func _clear_ability_nodes() -> void:
-	for node in get_tree().get_nodes_in_group("fireball_pickups"):
-		node.queue_free()
-	for node in get_tree().get_nodes_in_group("fireball_projectiles"):
-		node.queue_free()
-	active_fireball_pickup = null
+	for group in [&"dungeon_pickups", &"fireball_projectiles", &"spell_effects"]:
+		for node in get_tree().get_nodes_in_group(group):
+			node.queue_free()
+	active_pickups.clear()
 func damage_player(amount: int, knockback_direction: float) -> void:
 	if not game_active or damage_cooldown > 0.0:
 		return
@@ -450,8 +664,7 @@ func _finish_game(won: bool) -> void:
 	player.set("controls_enabled", false)
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
-	hearts_label.visible = false
-	fireball_label.visible = false
+	combat_hud.visible = false
 	status_label.visible = false
 	end_title.text = "DUNGEON CLEARED!" if won else "GAME OVER"
 	if won:
@@ -469,6 +682,5 @@ func _return_to_menu() -> void:
 		enemy.queue_free()
 	end_overlay.visible = false
 	menu_overlay.visible = true
-	hearts_label.visible = false
-	fireball_label.visible = false
+	combat_hud.visible = false
 	status_label.visible = false
