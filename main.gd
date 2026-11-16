@@ -7,6 +7,8 @@ const FOREST_ARENA := preload("res://forest_arena.gd")
 const FOREST_SCENE := preload("res://forest_arena.tscn")
 const SLIME_SCRIPT := preload("res://player.gd")
 const ENEMY_SCRIPT := preload("res://enemy.gd")
+const GRAVE_LORD := preload("res://grave_lord.gd")
+const GRAVE_LORD_HUD := preload("res://grave_lord_hud.gd")
 const PICKUP_SCRIPT := preload("res://fireball_pickup.gd")
 const Pickup := PICKUP_SCRIPT.Kind
 const PROJECTILE_SCRIPT := preload("res://fireball_projectile.gd")
@@ -37,6 +39,10 @@ const PICKUP_RADIUS := 30.0
 @onready var backdrop: Sprite2D = $DungeonTile/DungeonArt
 @onready var tile_size: Vector2 = backdrop.get_rect().size * backdrop.scale
 var active_tiles: Dictionary[int, Node2D] = {}
+var boss: GRAVE_LORD
+var boss_hud: GRAVE_LORD_HUD
+var boss_walls: StaticBody2D
+var boss_arena_center := 0.0
 var health_bar: ProgressBar
 var status_label: Label
 var combat_hud: TextureRect
@@ -128,6 +134,9 @@ func _tile_index_at(world_x: float) -> int:
 	return floori((world_x - backdrop.global_position.x) / tile_size.x + 0.5)
 
 func _update_scrolling() -> void:
+	if is_instance_valid(boss_walls):
+		camera.global_position.x = boss_arena_center
+		return
 	camera.global_position.x = player.global_position.x
 	var view_half_width := get_viewport_rect().size.x / (2.0 * camera.zoom.x)
 	var first_tile := _tile_index_at(camera.global_position.x - view_half_width) - 1
@@ -188,13 +197,18 @@ func _process(delta: float) -> void:
 		pickup_timers[kind] -= delta
 		if pickup_timers[kind] <= 0.0:
 			_spawn_pickup(kind)
+	if is_instance_valid(boss):
+		return
 	if spawn_timer > 0.0:
 		spawn_timer -= delta
 	if spawn_timer <= 0.0:
 		if transition_after_spawn:
 			transition_after_spawn = false
 			if current_wave >= total_waves:
-				_finish_game(true)
+				if is_instance_valid(forest_arena):
+					_finish_game(true)
+				else:
+					_start_boss_fight()
 			else:
 				_begin_wave(current_wave + 1)
 		elif spawned_this_wave < ENEMIES_PER_WAVE:
@@ -402,7 +416,7 @@ func _arena_card_style(fill: Color, outline: Color, padding: float = 0.0) -> Sty
 	return style
 
 func _build_how_to_overlay() -> void:
-	how_to_overlay = _make_overlay("HOW TO PLAY", "Move: A / D or ← / →\nJump onto wooden ledges: Space / W / ↑\nDrop through a platform: S / ↓ + Space\nRun: hold Shift\nMelee: J or left click\nCollect fireball or lightning charges, then right click to cast\nAfter collecting lightning, switch attacks with Q or E\nCollect green crosses to restore health\nDefeat every enemy in each wave to clear the arena.")
+	how_to_overlay = _make_overlay("HOW TO PLAY", "Move: A / D or ← / →\nJump onto wooden ledges: Space / W / ↑\nDrop through a platform: S / ↓ + Space\nRun: hold Shift\nMelee: J or left click\nCollect fireball or lightning charges, then right click to cast\nAfter collecting lightning, switch attacks with Q or E\nCollect green crosses to restore health\nClear every wave. In the Dungeon, defeat the Grave-Lord to win.")
 	var box := how_to_overlay.get_node("Center/Panel/Content") as VBoxContainer
 	var close_button := Button.new()
 	close_button.text = "BACK TO MENU"
@@ -523,6 +537,7 @@ func _restart_game() -> void:
 	_start_game()
 
 func _start_game() -> void:
+	_clear_boss_fight()
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
 	_clear_ability_nodes()
@@ -556,6 +571,59 @@ func _start_game() -> void:
 	combat_hud.visible = true
 	status_label.visible = true
 	_begin_wave(1)
+func _start_boss_fight() -> void:
+	_clear_ability_nodes()
+	var tile_index := _tile_index_at(player.global_position.x)
+	boss_arena_center = backdrop.global_position.x + tile_index * tile_size.x
+	var left := boss_arena_center - tile_size.x * 0.5
+	var right := boss_arena_center + tile_size.x * 0.5
+	var top := _level_floor_y(0)
+	var bottom := _level_floor_y(2)
+	var boss_x := left + 225.0
+
+	boss = GRAVE_LORD.new()
+	boss.name = "GraveLord"
+	boss.position = Vector2(boss_x, (top + bottom) * 0.5 - 35.0)
+	boss.height = bottom - top + 90.0
+	boss.arena_right = right - boss_x - 22.0
+	boss.floors = [top, _level_floor_y(1), bottom]
+	boss.target = player
+	boss.controller = self
+	enemy_root.add_child(boss)
+
+	# The left wall follows the boss's attackable edge so the slime can reach it from every floor.
+	var fight_left := boss_x + boss.hit_edge
+	boss_walls = StaticBody2D.new()
+	boss_walls.name = "BossArenaWalls"
+	boss_walls.collision_layer = SLIME_SCRIPT.GROUND_LAYER
+	boss_walls.collision_mask = 0
+	for wall_x: float in [fight_left - 10.0, right - 12.0]:
+		var wall := CollisionShape2D.new()
+		var rectangle := RectangleShape2D.new()
+		rectangle.size = Vector2(20.0, 2200.0)
+		wall.shape = rectangle
+		wall.position = Vector2(wall_x, (top + bottom) * 0.5)
+		boss_walls.add_child(wall)
+	add_child(boss_walls)
+	player.global_position.x = clampf(player.global_position.x, fight_left + 55.0, right - 66.0)
+	camera.global_position.x = boss_arena_center
+
+	boss_hud = GRAVE_LORD_HUD.new()
+	boss_hud.name = "GraveLordHUD"
+	$HUD.add_child(boss_hud)
+	boss_hud.reveal(GRAVE_LORD.MAX_HEALTH)
+	boss.health_changed.connect(boss_hud.update_health)
+	boss.defeated.connect(func() -> void: _finish_game(true))
+	status_label.hide()
+
+func _clear_boss_fight() -> void:
+	for node in [boss, boss_hud, boss_walls]:
+		if is_instance_valid(node):
+			node.queue_free()
+	boss = null
+	boss_hud = null
+	boss_walls = null
+
 func _begin_wave(number: int) -> void:
 	current_wave = number
 	spawned_this_wave = 0
@@ -619,6 +687,11 @@ func _attack() -> void:
 	var facing := float(player.get("facing"))
 	var closest: Node
 	var closest_distance := ATTACK_RANGE + 1.0
+	if is_instance_valid(boss):
+		var distance := player.global_position.x - (boss.global_position.x + boss.hit_edge)
+		if facing < 0.0 and distance <= ATTACK_RANGE:
+			boss.take_damage(ATTACK_DAMAGE, facing)
+		return
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		if bool(enemy.get("is_dead")):
 			continue
@@ -706,6 +779,11 @@ func _cast_lightning(direction: float) -> void:
 	var fade := beam.create_tween()
 	fade.tween_property(beam, "modulate:a", 0.0, 0.2).set_delay(0.12)
 	fade.tween_callback(beam.queue_free)
+	if is_instance_valid(boss):
+		var distance := player.global_position.x - (boss.global_position.x + boss.hit_edge)
+		if direction < 0.0 and distance <= LIGHTNING_RANGE + 38.0:
+			boss.take_damage(LIGHTNING_DAMAGE, direction)
+		return
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		var offset: Vector2 = enemy.global_position - player.global_position
 		var forward := offset.x * direction
@@ -729,6 +807,8 @@ func _spawn_pickup(kind: int) -> void:
 	var side := -1.0 if rng.randf() < 0.5 else 1.0
 	var platform_top_y := _level_floor_y(current_level)
 	var pickup_x := player.global_position.x + side * rng.randf_range(180.0, 360.0)
+	if is_instance_valid(boss_walls):
+		pickup_x = clampf(pickup_x, boss.global_position.x + boss.hit_edge + 80.0, boss_arena_center + tile_size.x * 0.5 - 75.0)
 	if is_instance_valid(forest_arena) and current_level != 2:
 		var tile := _forest_tile_at_player()
 		var span := tile.spawn_span(current_level, player.global_position.x)
@@ -795,6 +875,8 @@ func enemy_defeated() -> void:
 		spawn_timer = 1.0
 	_update_hud()
 func _finish_game(won: bool) -> void:
+	var fought_boss := is_instance_valid(boss)
+	_clear_boss_fight()
 	game_active = false
 	_clear_ability_nodes()
 	phase = "win" if won else "game_over"
@@ -805,13 +887,16 @@ func _finish_game(won: bool) -> void:
 	status_label.visible = false
 	var arena_name := "Forest" if is_instance_valid(forest_arena) else "Dungeon"
 	end_title.text = "%s CLEARED!" % arena_name.to_upper() if won else "GAME OVER"
-	if won:
+	if fought_boss:
+		end_message.text = "You defeated the Grave-Lord." if won else "You fell to the Grave-Lord."
+	elif won:
 		end_message.text = "You defeated all %d waves and %d enemies." % [total_waves, total_waves * ENEMIES_PER_WAVE]
 	else:
 		end_message.text = "You fell during wave %d.\nThe %s is still waiting." % [current_wave, arena_name.to_lower()]
 	end_overlay.visible = true
 
 func _return_to_menu() -> void:
+	_clear_boss_fight()
 	game_active = false
 	_clear_ability_nodes()
 	phase = "menu"
