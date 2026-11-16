@@ -20,7 +20,8 @@ func _ready() -> void:
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var sheet_material := ShaderMaterial.new()
 	sheet_material.shader = SHEET_SHADER
-	sheet_material.set_shader_parameter("trim_pale_edge", false)
+	sheet_material.set_shader_parameter("matte_chroma", Vector2(0.065, 0.16))
+	sheet_material.set_shader_parameter("matte_lightness", Vector2(0.50, 0.83))
 	sprite.material = sheet_material
 	sprite.flip_h = direction < 0.0
 	sprite.region_rect = FLIGHT_FRAMES[0]
