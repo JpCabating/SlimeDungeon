@@ -4,6 +4,7 @@ const PLAYER_FOOT_OFFSET := 2.0
 const FLOOR_NAMES := ["floor", "floor2", "floor3"]
 const CAMERA_MARGIN := 18.0
 const FOREST_ARENA := preload("res://forest_arena.gd")
+const FOREST_SCENE := preload("res://forest_arena.tscn")
 const SLIME_SCRIPT := preload("res://player.gd")
 const ENEMY_SCRIPT := preload("res://enemy.gd")
 const PICKUP_SCRIPT := preload("res://fireball_pickup.gd")
@@ -152,7 +153,7 @@ func _update_scrolling() -> void:
 
 func _level_floor_y(level_index: int) -> float:
 	if is_instance_valid(forest_arena):
-		return FOREST_ARENA.FLOOR_HEIGHTS[level_index]
+		return forest_arena.floor_height(level_index)
 	var floor_shape := dungeon_tile.get_node(FLOOR_NAMES[level_index] + "/CollisionShape2D") as CollisionShape2D
 	var rectangle := floor_shape.shape as RectangleShape2D
 	return floor_shape.global_position.y - rectangle.size.y * 0.5
@@ -312,7 +313,10 @@ func _build_main_menu() -> void:
 	cards.add_theme_constant_override("separation", 12)
 	box.add_child(cards)
 	var dungeon_card := _add_arena_card(cards, "Dungeon", backdrop.texture)
-	_add_arena_card(cards, "Forest", FOREST_ARENA.ART)
+	var forest_preview := FOREST_SCENE.instantiate()
+	var forest_art := forest_preview.get_node("Artwork") as Sprite2D
+	_add_arena_card(cards, "Forest", forest_art.texture)
+	forest_preview.free()
 	dungeon_card.set_pressed_no_signal(true)
 	var count_label := Label.new()
 	count_label.text = "NUMBER OF WAVES"
@@ -481,10 +485,11 @@ func _select_arena(use_forest: bool) -> void:
 	_frame_dungeon()
 
 func _new_forest_tile(index: int) -> FOREST_ARENA:
-	var tile := FOREST_ARENA.new()
+	var tile := FOREST_SCENE.instantiate() as FOREST_ARENA
 	tile.name = "ForestTile_%d" % index
 	tile.position.x = index * FOREST_ARENA.ARENA_SIZE.x
-	tile.mirrored = posmod(index, 2) == 1
+	if posmod(index, 2) == 1:
+		tile.transform = Transform2D(Vector2.LEFT, Vector2.DOWN, tile.position)
 	add_child(tile)
 	return tile
 
@@ -698,7 +703,7 @@ func _spawn_pickup(kind: int) -> void:
 	if is_instance_valid(forest_arena) and current_level != 2:
 		var tile := _forest_tile_at_player()
 		var span := tile.spawn_span(current_level, player.global_position.x)
-		var margin := PICKUP_RADIUS + 8.0
+		var margin := minf(PICKUP_RADIUS + 8.0, (span.y - span.x) * 0.5)
 		pickup_x = clampf(pickup_x, span.x + margin, span.y - margin)
 		platform_top_y = tile.spawn_floor_y(current_level, pickup_x)
 	pickup.global_position = Vector2(pickup_x, platform_top_y - PICKUP_RADIUS)
