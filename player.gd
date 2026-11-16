@@ -74,7 +74,7 @@ func _physics_process(delta: float) -> void:
 	elif dropping_requested:
 		drop_start_y = global_position.y
 		drop_through_time = 1.0
-		collision_mask = GROUND_LAYER
+		set_collision_mask_value(1, false)
 		velocity.y = 80.0
 	elif jump_just_pressed:
 		velocity.y = JUMP_VELOCITY
@@ -86,7 +86,7 @@ func _physics_process(delta: float) -> void:
 	if drop_through_time > 0.0:
 		drop_through_time -= delta
 		if is_on_floor() or global_position.y >= drop_start_y + 36.0 or drop_through_time <= 0.0:
-			collision_mask = WORLD_MASK
+			set_collision_mask_value(1, true)
 			drop_through_time = 0.0
 	animation_time += delta
 	if attack_animation_time > 0.0:

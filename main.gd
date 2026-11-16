@@ -23,7 +23,7 @@ const ENEMY_CAPSULES := [Vector2(28, 60), Vector2(32, 68), Vector2(43, 98)]
 const FOREST_ENEMY_SHEET := "res://Forest Tree Monster and Stone Golem.jpg"
 const FOREST_ENEMY_TYPES := ["tree_monster", "rock_golem"]
 const FOREST_ENEMY_NAMES := ["TreeMonster", "StoneGolem"]
-const FOREST_ENEMY_CAPSULES := [Vector2(26, 72), Vector2(36, 85)]
+const FOREST_ENEMY_CAPSULES := [Vector2(38, 115), Vector2(48, 132)]
 const PLAYER_MAX_HEALTH := 5
 const ATTACK_DAMAGE := 2
 const ATTACK_RANGE := 142.0
@@ -548,6 +548,7 @@ func _start_game() -> void:
 	_update_scrolling()
 	player.velocity = Vector2.ZERO
 	player.call("reset_animation_state")
+	player.set_collision_mask_value(2, is_instance_valid(forest_arena))
 	player.set("controls_enabled", true)
 	player.visible = true
 	menu_overlay.visible = false

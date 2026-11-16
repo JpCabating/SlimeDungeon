@@ -60,6 +60,7 @@ const GOLEM_ROWS := [
 
 @onready var sprite: Sprite2D = $Sprite2D
 var forest_sheet: Texture2D
+var ground_shadow: Sprite2D
 var frame_coordinate_scale := Vector2.ONE
 var controller: Node
 var target: CharacterBody2D
@@ -127,7 +128,7 @@ func _ready() -> void:
 			attack_reach = 80.0
 			moving_frame_anchor = 24.0
 			animation_rows = TREE_ROWS
-			sprite.scale = Vector2.ONE * 1.35
+			sprite.scale = Vector2.ONE * 2.25
 		"rock_golem":
 			attack_hits_after_windup = true
 			health = 8
@@ -135,18 +136,40 @@ func _ready() -> void:
 			movement_speed = 46.0
 			attack_duration = 0.85
 			attack_interval = 1.7
-			attack_reach = 76.0
+			attack_reach = 90.0
 			moving_frame_anchor = 29.0
 			knockback_speed = 110.0
 			animation_rows = GOLEM_ROWS
-			sprite.scale = Vector2.ONE * 1.65
+			sprite.scale = Vector2.ONE * 2.65
 	if forest_sheet != null:
 		sprite.texture = forest_sheet
+		sprite.self_modulate = Color(0.92, 0.98, 0.95)
 		frame_coordinate_scale = forest_sheet.get_size() / FOREST_FRAME_REFERENCE
 		sprite.scale /= frame_coordinate_scale
 		sheet_material.set_shader_parameter("matte_chroma", Vector2(0.075, 0.19))
 		sheet_material.set_shader_parameter("matte_lightness", Vector2(0.47, 0.80))
+		_add_ground_shadow()
 	_set_frame(Pose.IDLE, 0.0)
+
+func _add_ground_shadow() -> void:
+	var falloff := Gradient.new()
+	falloff.colors = PackedColorArray([Color(0.02, 0.08, 0.07, 0.62), Color(0.02, 0.08, 0.07, 0.0)])
+	var texture := GradientTexture2D.new()
+	texture.gradient = falloff
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	texture.width = 64
+	texture.height = 64
+
+	ground_shadow = Sprite2D.new()
+	ground_shadow.name = "GroundShadow"
+	ground_shadow.texture = texture
+	ground_shadow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	ground_shadow.scale = Vector2(1.85, 0.40) if enemy_type == "rock_golem" else Vector2(1.5, 0.34)
+	ground_shadow.z_index = -1
+	ground_shadow.hide()
+	add_child(ground_shadow)
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
@@ -188,6 +211,8 @@ func _physics_process(delta: float) -> void:
 			if not heavy_hit_pending:
 				controller.call("damage_player", contact_damage, -signf(distance_x))
 	move_and_slide()
+	if ground_shadow != null:
+		ground_shadow.visible = is_on_floor()
 	_update_animation(distance_x)
 
 func _update_animation(distance_x: float) -> void:
