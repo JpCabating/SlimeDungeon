@@ -1,10 +1,10 @@
 [gd_scene format=3 uid="uid://t6w74m51rwsl"]
 
-[ext_resource type="Script" path="res://main.gd" id="1_main"]
-[ext_resource type="Texture2D" path="res://Animation Sheets/Dungeon Levels.jpg" id="2_dungeon"]
-[ext_resource type="Script" path="res://player.gd" id="3_player"]
-[ext_resource type="Shader" path="res://slime_sheet.gdshader" id="4_lquwl"]
-[ext_resource type="Texture2D" path="res://Animation Sheets/Slime Dungeon Animation.png" id="5_7mycd"]
+[ext_resource type="Script" uid="uid://4a0llf2nbtam" path="res://main.gd" id="1_main"]
+[ext_resource type="Texture2D" uid="uid://dqluei6vkr3ie" path="res://Animation Sheets/Dungeon Levels.jpg" id="2_dungeon"]
+[ext_resource type="Script" uid="uid://bin1h183ghjet" path="res://player.gd" id="3_player"]
+[ext_resource type="Shader" uid="uid://c2vpjekvg2y33" path="res://slime_sheet.gdshader" id="4_lquwl"]
+[ext_resource type="Texture2D" uid="uid://bfrllqetxdpuj" path="res://Animation Sheets/Slime Dungeon Animation.png" id="5_7mycd"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1bvp3"]
 size = Vector2(1212.88, 10)
@@ -23,12 +23,6 @@ size = Vector2(100.02922, 6)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_efxa6"]
 size = Vector2(1210.88, 16)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_dg77c"]
-size = Vector2(39.485218, 6)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_ycdy4"]
-size = Vector2(47.38226, 6)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_w48qg"]
 size = Vector2(56.595478, 6)
@@ -51,7 +45,10 @@ height = 66.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_272bh"]
 shader = ExtResource("4_lquwl")
-shader_parameter/trim_pale_edge = null
+shader_parameter/trim_pale_edge = true
+shader_parameter/matte_chroma = Vector2(0.05, 0.18)
+shader_parameter/matte_lightness = Vector2(0.56, 0.87)
+shader_parameter/preserve_core = Vector3(-1, -1, 0)
 
 [node name="Node2D" type="Node2D" unique_id=459142813]
 script = ExtResource("1_main")
@@ -68,7 +65,7 @@ texture = ExtResource("2_dungeon")
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/floor" unique_id=1614637459]
-position = Vector2(0, 214.7)
+position = Vector2(-2, 230)
 shape = SubResource("RectangleShape2D_1bvp3")
 one_way_collision = true
 
@@ -76,7 +73,7 @@ one_way_collision = true
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/floor2" unique_id=29765518]
-position = Vector2(0, 421.1)
+position = Vector2(2, 434)
 shape = SubResource("RectangleShape2D_1bvp3")
 one_way_collision = true
 
@@ -85,14 +82,14 @@ collision_layer = 4
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/floor3" unique_id=848387943]
-position = Vector2(0, 631.8)
+position = Vector2(0, 651)
 shape = SubResource("RectangleShape2D_1bvp3")
 
 [node name="Platform" type="StaticBody2D" parent="DungeonTile" unique_id=426242382]
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/Platform" unique_id=114463171]
-position = Vector2(-242.176, 319.81564)
+position = Vector2(-240, 332)
 shape = SubResource("RectangleShape2D_lquwl")
 one_way_collision = true
 
@@ -100,7 +97,7 @@ one_way_collision = true
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/Platform3" unique_id=137923076]
-position = Vector2(242.17603, 319.81564)
+position = Vector2(241, 332)
 shape = SubResource("RectangleShape2D_7mycd")
 one_way_collision = true
 
@@ -108,7 +105,7 @@ one_way_collision = true
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/Platform2" unique_id=511600557]
-position = Vector2(30.271973, 368.5141)
+position = Vector2(31, 378)
 shape = SubResource("RectangleShape2D_272bh")
 one_way_collision = true
 
@@ -116,7 +113,7 @@ one_way_collision = true
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/Platform4" unique_id=1862964948]
-position = Vector2(411.96246, 559.3593)
+position = Vector2(412, 567)
 shape = SubResource("RectangleShape2D_5vw27")
 one_way_collision = true
 
@@ -128,27 +125,11 @@ collision_mask = 0
 position = Vector2(0, 34)
 shape = SubResource("RectangleShape2D_efxa6")
 
-[node name="LowerLeftLedge" type="StaticBody2D" parent="DungeonTile" unique_id=1123277115]
-collision_mask = 0
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/LowerLeftLedge" unique_id=1507794577]
-position = Vector2(-80.28662, 543.5652)
-shape = SubResource("RectangleShape2D_dg77c")
-one_way_collision = true
-
-[node name="LowerRightLedge" type="StaticBody2D" parent="DungeonTile" unique_id=1418158632]
-collision_mask = 0
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/LowerRightLedge" unique_id=1586237409]
-position = Vector2(498.8299, 581.73425)
-shape = SubResource("RectangleShape2D_ycdy4")
-one_way_collision = true
-
 [node name="UpperLeftEdgeLedge" type="StaticBody2D" parent="DungeonTile" unique_id=2119519580]
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/UpperLeftEdgeLedge" unique_id=1966815372]
-position = Vector2(-577.1423, 150.02922)
+position = Vector2(-577, 157)
 shape = SubResource("RectangleShape2D_w48qg")
 one_way_collision = true
 
@@ -156,7 +137,7 @@ one_way_collision = true
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/UpperLeftLongLedge" unique_id=285497518]
-position = Vector2(-454.7381, 136.86748)
+position = Vector2(-454, 148)
 shape = SubResource("RectangleShape2D_vivmo")
 one_way_collision = true
 
@@ -164,7 +145,7 @@ one_way_collision = true
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/UpperLeftLedge" unique_id=2119289687]
-position = Vector2(-242.176, 153.97774)
+position = Vector2(-240, 166)
 shape = SubResource("RectangleShape2D_2cqfq")
 one_way_collision = true
 
@@ -172,7 +153,7 @@ one_way_collision = true
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/UpperRightLedge" unique_id=969497594]
-position = Vector2(242.17603, 155.29391)
+position = Vector2(240, 164)
 shape = SubResource("RectangleShape2D_yaehf")
 one_way_collision = true
 
@@ -180,7 +161,7 @@ one_way_collision = true
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonTile/UpperRightEdgeLedge" unique_id=1694070432]
-position = Vector2(575.8261, 150.02922)
+position = Vector2(576, 157)
 shape = SubResource("RectangleShape2D_074og")
 one_way_collision = true
 

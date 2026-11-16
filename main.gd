@@ -3,6 +3,7 @@ extends Node2D
 const PLAYER_FOOT_OFFSET := 2.0
 const FLOOR_NAMES := ["floor", "floor2", "floor3"]
 const CAMERA_MARGIN := 18.0
+const FOREST_ARENA := preload("res://forest_arena.gd")
 const SLIME_SCRIPT := preload("res://player.gd")
 const ENEMY_SCRIPT := preload("res://enemy.gd")
 const PICKUP_SCRIPT := preload("res://fireball_pickup.gd")
@@ -44,6 +45,8 @@ var menu_overlay: Control
 var end_overlay: Control
 var how_to_overlay: Control
 var wave_option: OptionButton
+var arena_cards := ButtonGroup.new()
+var forest_arena: FOREST_ARENA
 var end_title: Label
 var end_message: Label
 var phase := "menu"
@@ -103,11 +106,18 @@ func _ensure_key_binding(action_name: StringName, keycode: Key) -> void:
 	InputMap.action_add_event(action_name, key_event)
 
 func _frame_dungeon() -> void:
+	if is_instance_valid(forest_arena):
+		var fit: Vector2 = get_viewport_rect().size / FOREST_ARENA.ARENA_SIZE
+		camera.global_position.y = FOREST_ARENA.ARENA_SIZE.y * 0.5
+		camera.zoom = Vector2.ONE * minf(fit.x, fit.y)
+		return
 	var fit := get_viewport_rect().size / (tile_size + Vector2.ONE * CAMERA_MARGIN * 2.0)
 	camera.global_position.y = backdrop.global_position.y
 	camera.zoom = Vector2.ONE * minf(1.0, minf(fit.x, fit.y))
 
 func _tile_index_at(world_x: float) -> int:
+	if is_instance_valid(forest_arena):
+		return floori(world_x / FOREST_ARENA.ARENA_SIZE.x + 0.5)
 	return floori((world_x - backdrop.global_position.x) / tile_size.x + 0.5)
 
 func _update_scrolling() -> void:
@@ -126,10 +136,14 @@ func _update_scrolling() -> void:
 	for tile_index in needed_tiles:
 		if tile_index == 0 or active_tiles.has(tile_index):
 			continue
-		var tile := dungeon_tile.duplicate() as Node2D
-		tile.name = "DungeonTile_%d" % tile_index
-		tile.position.x += tile_index * tile_size.x
-		add_child(tile)
+		var tile: Node2D
+		if is_instance_valid(forest_arena):
+			tile = _new_forest_tile(tile_index)
+		else:
+			tile = dungeon_tile.duplicate() as Node2D
+			tile.name = "DungeonTile_%d" % tile_index
+			tile.position.x += tile_index * tile_size.x
+			add_child(tile)
 		active_tiles[tile_index] = tile
 	for tile_index in active_tiles.keys():
 		if not needed_tiles.has(tile_index):
@@ -137,6 +151,8 @@ func _update_scrolling() -> void:
 			active_tiles.erase(tile_index)
 
 func _level_floor_y(level_index: int) -> float:
+	if is_instance_valid(forest_arena):
+		return FOREST_ARENA.FLOOR_HEIGHTS[level_index]
 	var floor_shape := dungeon_tile.get_node(FLOOR_NAMES[level_index] + "/CollisionShape2D") as CollisionShape2D
 	var rectangle := floor_shape.shape as RectangleShape2D
 	return floor_shape.global_position.y - rectangle.size.y * 0.5
@@ -287,8 +303,17 @@ func _update_spell_icon() -> void:
 	spell_label.text = "× %d" % spell_charges[selected_spell]
 	switch_hint.visible = lightning_unlocked
 func _build_main_menu() -> void:
-	menu_overlay = _make_overlay("SLIME DUNGEON", "Face the dungeon. Survive every wave.")
+	menu_overlay = _make_overlay("SLIME DUNGEON", "Choose an arena and survive every wave.")
 	var box := menu_overlay.get_node("Center/Panel/Content") as VBoxContainer
+	var panel := box.get_parent() as PanelContainer
+	panel.custom_minimum_size.x = 560
+	panel.add_theme_stylebox_override("panel", _arena_card_style(Color("#111821"), Color("#394854"), 18))
+	var cards := HBoxContainer.new()
+	cards.add_theme_constant_override("separation", 12)
+	box.add_child(cards)
+	var dungeon_card := _add_arena_card(cards, "Dungeon", backdrop.texture)
+	_add_arena_card(cards, "Forest", FOREST_ARENA.ART)
+	dungeon_card.set_pressed_no_signal(true)
 	var count_label := Label.new()
 	count_label.text = "NUMBER OF WAVES"
 	count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -306,7 +331,7 @@ func _build_main_menu() -> void:
 	wave_option.select(1)
 	box.add_child(wave_option)
 	var start_button := Button.new()
-	start_button.text = "ENTER THE DUNGEON"
+	start_button.text = "START GAME"
 	start_button.custom_minimum_size.y = 52
 	start_button.pressed.connect(_start_selected_game)
 	box.add_child(start_button)
@@ -318,8 +343,49 @@ func _build_main_menu() -> void:
 	menu_overlay.visible = true
 	_build_how_to_overlay()
 
+func _add_arena_card(row: HBoxContainer, arena_name: String, art: Texture2D) -> Button:
+	var card := Button.new()
+	card.name = arena_name
+	card.text = arena_name
+	card.toggle_mode = true
+	card.button_group = arena_cards
+	card.custom_minimum_size = Vector2(0, 142)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_theme_font_size_override("font_size", 19)
+	card.add_theme_stylebox_override("normal", _arena_card_style(Color("#1b2631"), Color("#455665")))
+	card.add_theme_stylebox_override("hover", _arena_card_style(Color("#263744"), Color("#8498a2")))
+	card.add_theme_stylebox_override("pressed", _arena_card_style(Color("#344333"), Color("#d4be72")))
+	card.add_theme_stylebox_override("hover_pressed", _arena_card_style(Color("#40513d"), Color("#ead48a")))
+	card.add_theme_stylebox_override("focus", _arena_card_style(Color.TRANSPARENT, Color("#f5edd6")))
+	row.add_child(card)
+
+	var preview := TextureRect.new()
+	preview.texture = art
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(preview)
+	preview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	preview.offset_left = 8
+	preview.offset_top = 8
+	preview.offset_right = -8
+	preview.offset_bottom = -40
+	return card
+
+func _arena_card_style(fill: Color, outline: Color, padding: float = 0.0) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = outline
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(7)
+	style.content_margin_left = padding
+	style.content_margin_right = padding
+	style.content_margin_top = padding if padding > 0 else 102.0
+	style.content_margin_bottom = padding
+	return style
+
 func _build_how_to_overlay() -> void:
-	how_to_overlay = _make_overlay("HOW TO PLAY", "Move: A / D or ← / →\nJump onto wooden ledges: Space / W / ↑\nDrop through a platform: S / ↓ + Space\nRun: hold Shift\nMelee: J or left click\nCollect fireball or lightning charges, then right click to cast\nAfter collecting lightning, switch attacks with Q or E\nCollect green crosses to restore health\nDefeat every enemy in each wave to clear the dungeon.")
+	how_to_overlay = _make_overlay("HOW TO PLAY", "Move: A / D or ← / →\nJump onto wooden ledges: Space / W / ↑\nDrop through a platform: S / ↓ + Space\nRun: hold Shift\nMelee: J or left click\nCollect fireball or lightning charges, then right click to cast\nAfter collecting lightning, switch attacks with Q or E\nCollect green crosses to restore health\nDefeat every enemy in each wave to clear the arena.")
 	var box := how_to_overlay.get_node("Center/Panel/Content") as VBoxContainer
 	var close_button := Button.new()
 	close_button.text = "BACK TO MENU"
@@ -392,7 +458,38 @@ func _make_overlay(title_text: String, subtitle_text: String) -> Control:
 
 func _start_selected_game() -> void:
 	total_waves = int(wave_option.get_selected_metadata())
+	_select_arena(arena_cards.get_pressed_button().name == &"Forest")
 	_start_game()
+
+func _select_arena(use_forest: bool) -> void:
+	if use_forest == is_instance_valid(forest_arena):
+		return
+	for tile in active_tiles.values():
+		remove_child(tile)
+		tile.queue_free()
+	active_tiles.clear()
+	if use_forest:
+		dungeon_tile.hide()
+		dungeon_tile.process_mode = Node.PROCESS_MODE_DISABLED
+		forest_arena = _new_forest_tile(0)
+	elif is_instance_valid(forest_arena):
+		remove_child(forest_arena)
+		forest_arena.queue_free()
+		forest_arena = null
+		dungeon_tile.process_mode = Node.PROCESS_MODE_INHERIT
+		dungeon_tile.show()
+	_frame_dungeon()
+
+func _new_forest_tile(index: int) -> FOREST_ARENA:
+	var tile := FOREST_ARENA.new()
+	tile.name = "ForestTile_%d" % index
+	tile.position.x = index * FOREST_ARENA.ARENA_SIZE.x
+	tile.mirrored = posmod(index, 2) == 1
+	add_child(tile)
+	return tile
+
+func _forest_tile_at_player() -> FOREST_ARENA:
+	return active_tiles.get(_tile_index_at(player.global_position.x), forest_arena) as FOREST_ARENA
 
 func _restart_game() -> void:
 	_start_game()
@@ -418,7 +515,7 @@ func _start_game() -> void:
 	attack_cooldown = 0.0
 	transition_after_spawn = false
 	next_spawn_side = 1.0
-	current_level = 1
+	current_level = 2 if is_instance_valid(forest_arena) else 1
 	player.global_position = Vector2(0.0, _level_floor_y(current_level) - PLAYER_FOOT_OFFSET)
 	_update_scrolling()
 	player.velocity = Vector2.ZERO
@@ -456,10 +553,13 @@ func _spawn_enemy(group_index: int) -> void:
 	enemy.set("controller", self)
 	enemy.set("target", player)
 	enemy.set("enemy_type", ENEMY_TYPES[type_index])
-	enemy.position = Vector2(
-		player.global_position.x + next_spawn_side * (430.0 + group_index * 90.0),
-		_level_floor_y(current_level) - PLAYER_FOOT_OFFSET
-	)
+	var spawn_x := player.global_position.x + next_spawn_side * (430.0 + group_index * 90.0)
+	var spawn_y := _level_floor_y(current_level)
+	if is_instance_valid(forest_arena) and current_level != 2:
+		var tile := _forest_tile_at_player()
+		spawn_x = tile.enemy_spawn_x(current_level, player.global_position.x, next_spawn_side, group_index)
+		spawn_y = tile.spawn_floor_y(current_level, spawn_x)
+	enemy.position = Vector2(spawn_x, spawn_y - PLAYER_FOOT_OFFSET)
 	enemy.collision_layer = 2
 	enemy.collision_mask = SLIME_SCRIPT.WORLD_MASK
 	var body_shape := CollisionShape2D.new()
@@ -595,10 +695,13 @@ func _spawn_pickup(kind: int) -> void:
 	var side := -1.0 if rng.randf() < 0.5 else 1.0
 	var platform_top_y := _level_floor_y(current_level)
 	var pickup_x := player.global_position.x + side * rng.randf_range(180.0, 360.0)
-	pickup.global_position = Vector2(
-		pickup_x,
-		platform_top_y - PICKUP_RADIUS
-	)
+	if is_instance_valid(forest_arena) and current_level != 2:
+		var tile := _forest_tile_at_player()
+		var span := tile.spawn_span(current_level, player.global_position.x)
+		var margin := PICKUP_RADIUS + 8.0
+		pickup_x = clampf(pickup_x, span.x + margin, span.y - margin)
+		platform_top_y = tile.spawn_floor_y(current_level, pickup_x)
+	pickup.global_position = Vector2(pickup_x, platform_top_y - PICKUP_RADIUS)
 	pickup.collision_layer = 0
 	pickup.collision_mask = 1
 	var pickup_shape := CollisionShape2D.new()
@@ -666,11 +769,12 @@ func _finish_game(won: bool) -> void:
 		enemy.queue_free()
 	combat_hud.visible = false
 	status_label.visible = false
-	end_title.text = "DUNGEON CLEARED!" if won else "GAME OVER"
+	var arena_name := "Forest" if is_instance_valid(forest_arena) else "Dungeon"
+	end_title.text = "%s CLEARED!" % arena_name.to_upper() if won else "GAME OVER"
 	if won:
 		end_message.text = "You defeated all %d waves and %d enemies." % [total_waves, total_waves * ENEMIES_PER_WAVE]
 	else:
-		end_message.text = "You fell during wave %d.\nThe dungeon is still waiting." % current_wave
+		end_message.text = "You fell during wave %d.\nThe %s is still waiting." % [current_wave, arena_name.to_lower()]
 	end_overlay.visible = true
 
 func _return_to_menu() -> void:
@@ -684,3 +788,8 @@ func _return_to_menu() -> void:
 	menu_overlay.visible = true
 	combat_hud.visible = false
 	status_label.visible = false
+	if is_instance_valid(forest_arena):
+		_select_arena(false)
+		player.global_position = Vector2(0.0, _level_floor_y(1) - PLAYER_FOOT_OFFSET)
+		player.velocity = Vector2.ZERO
+		_update_scrolling()
