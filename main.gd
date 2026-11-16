@@ -20,6 +20,10 @@ const ENEMIES_PER_WAVE := 10
 const ENEMY_TYPES := ["skeleton", "slime", "brute"]
 const ENEMY_NAMES := ["Skeleton", "SlimeWarrior", "SlimeBrute"]
 const ENEMY_CAPSULES := [Vector2(28, 60), Vector2(32, 68), Vector2(43, 98)]
+const FOREST_ENEMY_SHEET := "res://Forest Tree Monster and Stone Golem.jpg"
+const FOREST_ENEMY_TYPES := ["tree_monster", "rock_golem"]
+const FOREST_ENEMY_NAMES := ["TreeMonster", "StoneGolem"]
+const FOREST_ENEMY_CAPSULES := [Vector2(26, 72), Vector2(36, 85)]
 const PLAYER_MAX_HEALTH := 5
 const ATTACK_DAMAGE := 2
 const ATTACK_RANGE := 142.0
@@ -43,11 +47,13 @@ var spell_frames: Array[AtlasTexture] = []
 var lightning_icon_material: ShaderMaterial
 var lightning_beam_material: ShaderMaterial
 var menu_overlay: Control
+var arena_error: Label
 var end_overlay: Control
 var how_to_overlay: Control
 var wave_option: OptionButton
 var arena_cards := ButtonGroup.new()
 var forest_arena: FOREST_ARENA
+var forest_enemy_sheet: Texture2D
 var end_title: Label
 var end_message: Label
 var phase := "menu"
@@ -339,6 +345,13 @@ func _build_main_menu() -> void:
 	start_button.custom_minimum_size.y = 52
 	start_button.pressed.connect(_start_selected_game)
 	box.add_child(start_button)
+	arena_error = Label.new()
+	arena_error.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	arena_error.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	arena_error.add_theme_color_override("font_color", Color("#ffc488"))
+	arena_error.hide()
+	box.add_child(arena_error)
+	arena_cards.pressed.connect(func(_card: BaseButton) -> void: arena_error.hide())
 	var how_to_button := Button.new()
 	how_to_button.text = "HOW TO PLAY"
 	how_to_button.custom_minimum_size.y = 46
@@ -461,8 +474,18 @@ func _make_overlay(title_text: String, subtitle_text: String) -> Control:
 	return overlay
 
 func _start_selected_game() -> void:
+	var use_forest := arena_cards.get_pressed_button().name == &"Forest"
+	forest_enemy_sheet = null
+	if use_forest:
+		if ResourceLoader.exists(FOREST_ENEMY_SHEET, "Texture2D"):
+			forest_enemy_sheet = load(FOREST_ENEMY_SHEET) as Texture2D
+		if forest_enemy_sheet == null:
+			arena_error.text = "Missing Forest Tree Monster and Stone Golem.jpg."
+			arena_error.show()
+			return
+	arena_error.hide()
 	total_waves = int(wave_option.get_selected_metadata())
-	_select_arena(arena_cards.get_pressed_button().name == &"Forest")
+	_select_arena(use_forest)
 	_start_game()
 
 func _select_arena(use_forest: bool) -> void:
@@ -552,12 +575,17 @@ func _spawn_enemy(group_index: int) -> void:
 	if not game_active:
 		return
 	var enemy := CharacterBody2D.new()
-	var type_index := spawned_this_wave % ENEMY_TYPES.size()
-	enemy.name = "%s_%02d" % [ENEMY_NAMES[type_index], spawned_this_wave + 1]
+	var use_forest_roster := is_instance_valid(forest_arena)
+	var types := FOREST_ENEMY_TYPES if use_forest_roster else ENEMY_TYPES
+	var names := FOREST_ENEMY_NAMES if use_forest_roster else ENEMY_NAMES
+	var capsules := FOREST_ENEMY_CAPSULES if use_forest_roster else ENEMY_CAPSULES
+	var type_index := spawned_this_wave % types.size()
+	enemy.name = "%s_%02d" % [names[type_index], spawned_this_wave + 1]
 	enemy.set_script(ENEMY_SCRIPT)
 	enemy.set("controller", self)
 	enemy.set("target", player)
-	enemy.set("enemy_type", ENEMY_TYPES[type_index])
+	enemy.set("enemy_type", types[type_index])
+	enemy.set("forest_sheet", forest_enemy_sheet)
 	var spawn_x := player.global_position.x + next_spawn_side * (430.0 + group_index * 90.0)
 	var spawn_y := _level_floor_y(current_level)
 	if is_instance_valid(forest_arena) and current_level != 2:
@@ -569,7 +597,7 @@ func _spawn_enemy(group_index: int) -> void:
 	enemy.collision_mask = SLIME_SCRIPT.WORLD_MASK
 	var body_shape := CollisionShape2D.new()
 	var capsule := CapsuleShape2D.new()
-	var capsule_size: Vector2 = ENEMY_CAPSULES[type_index]
+	var capsule_size: Vector2 = capsules[type_index]
 	capsule.height = capsule_size.y
 	capsule.radius = capsule_size.x
 	body_shape.shape = capsule
